@@ -86,7 +86,7 @@ func HALAdapter(c []byte, bus i2c.Bus) (hal.Driver, error) {
 	}
 
 	// Wake the hardware
-	return &pwm, hwDriver.Wake()
+	return &pwm, hwDriver.Setup()
 }
 
 func (p *pca9685Driver) Close() error {
@@ -95,7 +95,7 @@ func (p *pca9685Driver) Close() error {
 		return err
 	}
 	// Send the hardware to sleep
-	return p.hwDriver.Sleep()
+	return nil
 }
 
 func (p *pca9685Driver) Metadata() hal.Metadata {

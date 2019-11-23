@@ -1,7 +1,6 @@
 package pca9685
 
 import (
-	"log"
 	"math"
 	"time"
 
@@ -12,9 +11,18 @@ const (
 	clockFreq        = 25000000
 	pwmControlPoints = 4096
 	mode1RegAddr     = 0x00
-	preScaleRegAddr  = 0xFE
+	mode2RegAddr     = 0x01
 	pwm0OnLowReg     = 0x6
 	defaultFreq      = 490
+	OUTDRV           = 0x0
+	SLEEP            = byte(0x10)
+	ALLCALL          = 0x01
+	ALL_LED_ON_L     = 0xFA
+	ALL_LED_ON_H     = 0xFB
+	ALL_LED_OFF_L    = 0xFC
+	ALL_LED_OFF_H    = 0xFD
+	preScaleRegAddr  = byte(0xFE)
+	RESTART          = 0x80
 )
 
 type PCA9685 struct {
@@ -31,90 +39,79 @@ func New(addr byte, bus i2c.Bus) *PCA9685 {
 	}
 }
 
-func (p *PCA9685) mode1Reg() (byte, error) {
-	mode1Reg := make([]byte, 1)
-	return mode1Reg[0], p.bus.WriteToReg(p.addr, mode1RegAddr, mode1Reg)
+func (p *PCA9685) Setup() error {
+	if err := p.SetAll(0, 0); err != nil {
+		return err
+	}
+	if err := p.bus.WriteToReg(p.addr, mode2RegAddr, []byte{OUTDRV}); err != nil {
+		return nil
+	}
+	if err := p.bus.WriteToReg(p.addr, mode1RegAddr, []byte{ALLCALL}); err != nil {
+		return nil
+	}
+	time.Sleep(time.Millisecond)
+	mode1 := make([]byte, 1)
+	if err := p.bus.ReadFromReg(p.addr, mode1RegAddr, mode1); err != nil {
+		return err
+	}
+	newMode := mode1[0] & ^SLEEP
+	if err := p.bus.WriteToReg(p.addr, mode1RegAddr, []byte{newMode}); err != nil {
+		return err
+	}
+	time.Sleep(time.Millisecond)
+	return nil
 }
 
-// Set the sleep flag on the PCA. This will shut down the oscillators.
-func (p *PCA9685) Sleep() error {
-	mode1Reg, err := p.mode1Reg()
-	if err != nil {
-		return err
-	}
-
-	sleepmode := (mode1Reg & 0x7F) | 0x10 // Mask restart bit and set sleep bit
-	return p.bus.WriteToReg(p.addr, mode1RegAddr, []byte{sleepmode})
-}
-
-func (p *PCA9685) Wake() error {
-	mode1Reg, err := p.mode1Reg()
-	if err != nil {
-		return err
-	}
-	if err := p.Sleep(); err != nil {
-		return err
-	}
+func (p *PCA9685) SetFrequency() error {
 	if p.Freq == 0 {
 		p.Freq = defaultFreq
 	}
-	preScaleValue := byte(math.Floor(float64(clockFreq/(pwmControlPoints*p.Freq))+float64(0.5)) - 1)
-	if err := p.bus.WriteToReg(p.addr, preScaleRegAddr, []byte{preScaleValue}); err != nil {
+	preScaleValue := int(math.Floor(float64(clockFreq/(pwmControlPoints*p.Freq))+float64(0.5)) - 1)
+
+	oldMode := make([]byte, 1)
+	if err := p.bus.ReadFromReg(p.addr, mode1RegAddr, oldMode); err != nil {
 		return err
 	}
-	wakeMode := mode1Reg & 0xEF
-	if (mode1Reg & 0x80) == 0x80 {
-		if err := p.bus.WriteToReg(p.addr, mode1RegAddr, []byte{wakeMode}); err != nil {
-			return err
-		}
-		time.Sleep(500 * time.Microsecond)
-	}
-
-	restartOpCode := wakeMode | 0x80
-	if err := p.bus.WriteToReg(p.addr, mode1RegAddr, []byte{restartOpCode}); err != nil {
+	newMode := (oldMode[0] & 0x7F) | SLEEP
+	if err := p.bus.WriteToReg(p.addr, mode1RegAddr, []byte{newMode}); err != nil {
 		return err
 	}
-
-	newmode := ((mode1Reg | 0x01) & 0xDF)
-	return p.bus.WriteToReg(p.addr, mode1RegAddr, []byte{newmode})
+	time.Sleep(time.Millisecond)
+	if err := p.bus.WriteToReg(p.addr, preScaleRegAddr, []byte{byte(preScaleValue)}); err != nil {
+		return err
+	}
+	if err := p.bus.WriteToReg(p.addr, mode1RegAddr, oldMode); err != nil {
+		return err
+	}
+	time.Sleep(time.Millisecond)
+	if err := p.bus.WriteToReg(p.addr, mode1RegAddr, []byte{oldMode[0] | RESTART}); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (p *PCA9685) SetPwm(channel int, onTime, offTime uint16) error {
-	log.Println("onTime ", onTime, " offTime ", offTime)
-	if offTime > 4095 {
-		offTime = 4095
+func (p *PCA9685) SetPwm(channel int, on, off uint16) error {
+	if off > 4095 {
+		off = 4095
 	}
-
-	// If offTime == 0, we want to be full off. Set LEDx_OFF_H(4)
-	if offTime == 0 {
-		onTime = 0
-		offTime = 4096
-	}
-
-	// If offTime == 4095, we want to be full on. Set LEDx_ON_H(4)
-	if offTime == 4095 {
-		onTime = 4096
-		offTime = 0
-	}
-
 	// Split the ints into 4 bytes
-	timeReg := byte(pwm0OnLowReg + (4 * channel))
-	onTimeLow := byte(onTime & 0xFF)
-	onTimeHigh := byte(onTime >> 8)
-	offTimeLow := byte(offTime & 0xFF)
-	offTimeHigh := byte(offTime >> 8)
+	chanReg := byte(pwm0OnLowReg + (4 * channel))
+	onLow := byte(on & 0xFF)
+	onHigh := byte(on >> 8)
+	offLow := byte(off & 0xFF)
+	offHigh := byte(off >> 8)
 
 	//log.Println("onLow ", onTimeLow, " onHigh ", onTimeHigh, " offLow ", offTimeLow, " offHigh ", offTimeHigh)
-	if err := p.bus.WriteToReg(p.addr, timeReg, []byte{onTimeLow}); err != nil {
+	if err := p.bus.WriteToReg(p.addr, chanReg, []byte{onLow}); err != nil {
 		return err
 	}
-	if err := p.bus.WriteToReg(p.addr, timeReg+1, []byte{onTimeHigh}); err != nil {
+	if err := p.bus.WriteToReg(p.addr, chanReg+1, []byte{onHigh}); err != nil {
 		return err
 	}
-	if err := p.bus.WriteToReg(p.addr, timeReg+2, []byte{offTimeLow}); err != nil {
+	if err := p.bus.WriteToReg(p.addr, chanReg+2, []byte{offLow}); err != nil {
 		return err
 	}
-	return p.bus.WriteToReg(p.addr, timeReg+3, []byte{offTimeHigh})
+	return p.bus.WriteToReg(p.addr, chanReg+3, []byte{offHigh})
 }
 
 func (p *PCA9685) Close() error {
@@ -123,6 +120,22 @@ func (p *PCA9685) Close() error {
 		if err := p.bus.WriteToReg(p.addr, byte(regAddr), []byte{0x00, 0x00, 0x00, 0x10}); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (p *PCA9685) SetAll(on, off uint16) error {
+	if err := p.bus.WriteToReg(p.addr, ALL_LED_ON_L, []byte{byte(on & 0xFF)}); err != nil {
+		return err
+	}
+	if err := p.bus.WriteToReg(p.addr, ALL_LED_ON_H, []byte{byte(on >> 8)}); err != nil {
+		return err
+	}
+	if err := p.bus.WriteToReg(p.addr, ALL_LED_OFF_L, []byte{byte(off & 0xFF)}); err != nil {
+		return err
+	}
+	if err := p.bus.WriteToReg(p.addr, ALL_LED_OFF_H, []byte{byte(off >> 8)}); err != nil {
+		return err
 	}
 	return nil
 }

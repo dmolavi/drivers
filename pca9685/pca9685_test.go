@@ -9,7 +9,7 @@ import (
 func TestNew(t *testing.T) {
 	bus := i2c.MockBus()
 	p := New(0x70, bus)
-	if err := p.Wake(); err != nil {
+	if err := p.Setup(); err != nil {
 		t.Fatal(err)
 	}
 	p.SetPwm(10, 0, 10)
