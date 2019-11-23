@@ -11,6 +11,11 @@ import (
 	"github.com/reef-pi/rpi/i2c"
 )
 
+const (
+	_name        = "pca9685"
+	_description = "HAL Driver for PCA9685 16 channel PWM IC"
+)
+
 type PCA9685Config struct {
 	Address   int `json:"address"` // 0x40
 	Frequency int `json:"frequency"`
@@ -85,23 +90,17 @@ func HALAdapter(c []byte, bus i2c.Bus) (hal.Driver, error) {
 		pwm.channels = append(pwm.channels, ch)
 	}
 
-	// Wake the hardware
 	return &pwm, hwDriver.Setup()
 }
 
 func (p *pca9685Driver) Close() error {
-	// Close the driver (will clear all registers)
-	if err := p.hwDriver.Close(); err != nil {
-		return err
-	}
-	// Send the hardware to sleep
-	return nil
+	return p.hwDriver.Close()
 }
 
 func (p *pca9685Driver) Metadata() hal.Metadata {
 	return hal.Metadata{
-		Name:        "pca9685",
-		Description: "Supports one PCA9685 chip",
+		Name:        _name,
+		Description: _description,
 		Capabilities: []hal.Capability{
 			hal.PWM, hal.DigitalOutput,
 		},
@@ -139,12 +138,20 @@ func (p *pca9685Driver) DigitalOutputPin(n int) (hal.DigitalOutputPin, error) {
 
 // value should be within 0-100
 func (p *pca9685Driver) set(pin int, value float64) error {
-	if (value > 100) || (value < 0) {
-		return fmt.Errorf("invalid pwm range: %f, value should be within 0 to 100", value)
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.hwDriver.SetPwm(pin, 0, uint16(value*40.95))
+	switch {
+	case value > 100:
+		return fmt.Errorf("invalid pwm range: %f, value should be less than 100", value)
+	case value < 0:
+		return fmt.Errorf("invalid pwm range: %f, value should be greater than 100", value)
+	case value == 0:
+		return p.hwDriver.SetPwm(pin, 4096, 0)
+	case value == 100:
+		return p.hwDriver.SetPwm(pin, 0, 4096)
+	default:
+		return p.hwDriver.SetPwm(pin, 0, uint16(value*40.95))
+	}
 }
 
 func (p *pca9685Driver) Pins(cap hal.Capability) ([]hal.Pin, error) {

@@ -59,7 +59,7 @@ func (p *PCA9685) Setup() error {
 		return err
 	}
 	time.Sleep(time.Millisecond)
-	return nil
+	return p.SetFrequency()
 }
 
 func (p *PCA9685) SetFrequency() error {
@@ -91,9 +91,6 @@ func (p *PCA9685) SetFrequency() error {
 }
 
 func (p *PCA9685) SetPwm(channel int, on, off uint16) error {
-	if off > 4095 {
-		off = 4095
-	}
 	// Split the ints into 4 bytes
 	chanReg := byte(pwm0OnLowReg + (4 * channel))
 	onLow := byte(on & 0xFF)
