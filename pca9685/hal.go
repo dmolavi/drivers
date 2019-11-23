@@ -146,9 +146,9 @@ func (p *pca9685Driver) set(pin int, value float64) error {
 	case value < 0:
 		return fmt.Errorf("invalid pwm range: %f, value should be greater than 100", value)
 	case value == 0:
-		return p.hwDriver.SetPwm(pin, 4096, 0)
-	case value == 100:
 		return p.hwDriver.SetPwm(pin, 0, 4096)
+	case value == 100:
+		return p.hwDriver.SetPwm(pin, 4096, 0)
 	default:
 		return p.hwDriver.SetPwm(pin, 0, uint16(value*40.95))
 	}
