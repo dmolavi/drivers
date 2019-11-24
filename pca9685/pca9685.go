@@ -99,7 +99,7 @@ func (p *PCA9685) SetPwm(channel int, on, off uint16) error {
 	offLow := byte(off & 0xFF)
 	offHigh := byte(off >> 8)
 
-	log.Println("onLow ", onTimeLow, " onHigh ", onTimeHigh, " offLow ", offTimeLow, " offHigh ", offTimeHigh)
+	log.Println("onLow ", onLow, " onHigh ", onHigh, " offLow ", offLow, " offHigh ", offHigh)
 	if err := p.bus.WriteToReg(p.addr, chanReg, []byte{onLow}); err != nil {
 		return err
 	}
