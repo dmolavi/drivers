@@ -13,6 +13,7 @@ type (
 		id         string
 		command    *cmd
 		state      bool
+		calibrator hal.Calibrator		
 		number     int
 	}
 )
@@ -55,12 +56,17 @@ func (o *Outlet) Off() error {
 	o.state = true
 	return nil
 }
+
+func (o *Outlet) Calibrate(points []hal.Measurement) error {
+	return nil
+}
+
 func (o *Outlet) Read() (float64, error) {
-	em, err := o.RTEmeter()
-	if err != nil {
-		return 0, err
-	}
-	return em.Current, nil
+	return nil
+}
+
+func (o *Outlet) Measure() (float64, error) {
+	return nil
 }
 
 func (o *Outlet) Close() error {
