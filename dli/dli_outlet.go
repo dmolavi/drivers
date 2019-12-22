@@ -63,7 +63,7 @@ func (o *Outlet) Read() (float64, error) {
 }
 
 func (o *Outlet) Measure() (float64, error) {
-	return nil
+	return 0,nil
 }
 
 func (o *Outlet) Close() error {
