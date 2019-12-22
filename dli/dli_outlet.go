@@ -1,9 +1,6 @@
 package dli
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/reef-pi/hal"
 )
 
@@ -62,7 +59,7 @@ func (o *Outlet) Calibrate(points []hal.Measurement) error {
 }
 
 func (o *Outlet) Read() (float64, error) {
-	return nil
+	return 0,nil
 }
 
 func (o *Outlet) Measure() (float64, error) {
