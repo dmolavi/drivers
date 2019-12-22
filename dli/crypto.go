@@ -1,4 +1,4 @@
-package tplink
+package dli
 
 func autokeyEncrypt(cmd []byte) []byte {
 	n := len(cmd)

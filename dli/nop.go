@@ -1,4 +1,4 @@
-package tplink
+package dli
 
 import (
 	"io"
