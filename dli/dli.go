@@ -27,8 +27,6 @@ func NewDLIStrip(addr string) *DLIStrip {
 		},
 		command: &cmd{
 			addr: addr,
-			user: username,
-			passwd: password,
 		},
 		children: make([]*Outlet, 8),
 	}
