@@ -8,7 +8,7 @@ build:
 
 .PHONY: imports
 imports:
-	goimports -w -local "github.com/reef-pi" ./
+	goimports -w -local "github.com/dmolavi" ./
 
 .PHONY: fmt
 fmt:
