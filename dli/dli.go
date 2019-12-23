@@ -26,8 +26,9 @@ func NewDLIStrip(addr string) *DLIStrip {
 			},
 		},
 		command: &cmd{
-			cf:   TCPConnFactory,
 			addr: addr,
+			user: username,
+			passwd: password,
 		},
 		children: make([]*Outlet, 8),
 	}
@@ -46,9 +47,6 @@ func (s *DLIStrip) Metadata() hal.Metadata {
 	return s.meta
 }
 
-func (s *DLIStrip) SetFactory(cf ConnectionFactory) {
-	s.command.cf = cf
-}
 func (s *DLIStrip) Name() string {
 	return s.meta.Name
 }
