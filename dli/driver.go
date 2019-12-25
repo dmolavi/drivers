@@ -1,4 +1,4 @@
-package main
+package dli
 
 import (
     "bytes"
@@ -11,7 +11,10 @@ import (
     "log"
     "net/http"
     "strings"
-	"bufio"
+    "bufio"
+
+    "github.com/reef-pi/hal"
+    "github.com/reef-pi/rpi/i2c"
 )
 
 func digestGet(host string, uri string, args string) bool {
@@ -49,10 +52,6 @@ func digestGet(host string, uri string, args string) bool {
         }
         log.Println("response body: ", string(body))
         return false
-    }
-	scanner := bufio.NewScanner(resp.Body)
-    for i := 0; scanner.Scan() && i < 5; i++ {
-        fmt.Println(scanner.Text())
     }
     return true
 }
@@ -95,11 +94,6 @@ func digestPut(host string, uri string, args string, state string) bool {
         log.Println("response body: ", string(body))
         return false
     }
-	scanner := bufio.NewScanner(resp.Body)
-    for i := 0; scanner.Scan() && i < 5; i++ {
-        fmt.Println(scanner.Text())
-    }
-    return true
 }
 
 func digestParts(resp *http.Response) map[string]string {
@@ -151,4 +145,4 @@ func main() {
 	// - Outlet state
 	// - doing a set or just getting status? status updates should be every minute or so
 	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/") 
-}
+}s
