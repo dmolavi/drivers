@@ -172,4 +172,4 @@ func main() {
 	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/") 
 	// To get a specific relay, specify 0-based outlet number:
 	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/3/state") 
-}s
+}
