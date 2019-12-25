@@ -11,10 +11,8 @@ import (
     "log"
     "net/http"
     "strings"
-    "bufio"
 
     "github.com/reef-pi/hal"
-    "github.com/reef-pi/rpi/i2c"
 )
 
 type DLIWebProSwitch struct {
