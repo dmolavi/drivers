@@ -17,6 +17,30 @@ import (
     "github.com/reef-pi/rpi/i2c"
 )
 
+type DLIWebProSwitch struct {
+    children []*Outlet
+    command *cmd
+    meta hal.Metadata
+}
+
+func NewDLIWebProSwitch(addr string, user string, password string) *DLIWebProSwitch {
+    return &DLIWebProSwitch {
+        meta: hal.Metadata {
+            Name: "dli-pro",
+            Description: "Digital Loggers Web Pro Switch driver",
+            Capabilities: []hal.Capability{
+                hal.DigitalOutput,
+            },
+        },
+        command: &cmd{
+            addr: addr,
+            user: user,
+            password: password,
+        },
+	children: make([]*Outlet,8),
+    }
+}
+
 func digestGet(host string, uri string, args string) bool {
     url := host+uri
     method := "GET"
@@ -38,7 +62,7 @@ func digestGet(host string, uri string, args string) bool {
     digestParts["username"] = "admin"
     digestParts["password"] = "4321"
     req, err = http.NewRequest(method, url+args, nil)
-    req.Header.Set("Authorization", getDigestAuthrization(digestParts))
+    req.Header.Set("Authorization", getDigestAuthorization(digestParts))
     req.Header.Set("Content-Type", "application/json")
     resp, err = client.Do(req)
     if err != nil {
@@ -78,7 +102,7 @@ func digestPut(host string, uri string, args string, state string) bool {
     digestParts["username"] = "admin"
     digestParts["password"] = "4321"
 	req, err = http.NewRequest(method, url+args, bytes.NewBuffer([]byte(state)))
-    req.Header.Set("Authorization", getDigestAuthrization(digestParts))
+    req.Header.Set("Authorization", getDigestAuthorization(digestParts))
     req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
     resp, err = client.Do(req)
@@ -124,7 +148,7 @@ func getCnonce() string {
     return fmt.Sprintf("%x", b)[:16]
 }
 
-func getDigestAuthrization(digestParts map[string]string) string {
+func getDigestAuthorization(digestParts map[string]string) string {
     d := digestParts
     ha1 := getMD5(d["username"] + ":" + d["realm"] + ":" + d["password"])
     ha2 := getMD5(d["method"] + ":" + d["uri"])
@@ -144,5 +168,8 @@ func main() {
 	// - Outlet number (API is 0-based, relay 3 is outlet 4)
 	// - Outlet state
 	// - doing a set or just getting status? status updates should be every minute or so
+	// This will always be the command to get all statuses:
 	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/") 
+	// To get a specific relay, specify 0-based outlet number:
+	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/3/state") 
 }s
