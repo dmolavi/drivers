@@ -11,15 +11,24 @@ import (
     "log"
     "net/http"
     "strings"
-
+    "encoding/json"
+    "strconv"
     "github.com/reef-pi/hal"
+    "github.com/reef-pi/rpi/i2c"
 )
 
 type DLIWebProSwitch struct {
-    children []*Outlet
-    command *cmd
+    state bool
     meta hal.Metadata
 }
+
+type (
+	Config struct {
+			Address string `json:"address"`
+			User string `json:"user"`
+			Password string `json:"password"`
+	}
+)
 
 func NewDLIWebProSwitch(addr string, user string, password string) *DLIWebProSwitch {
     return &DLIWebProSwitch {
@@ -29,18 +38,14 @@ func NewDLIWebProSwitch(addr string, user string, password string) *DLIWebProSwi
             Capabilities: []hal.Capability{
                 hal.DigitalOutput,
             },
-        },
-        command: &cmd{
-            addr: addr,
-            user: user,
-            password: password,
-        },
-	children: make([]*Outlet,8),
+        },	
     }
 }
 
-func digestGet(host string, uri string, args string) bool {
-    url := host+uri
+func (p *DLIWebProSwitch) LastState() bool {
+    var conf Config
+    url := "http://"+conf.Address
+    var args = "/restapi/relay/outlets/"
     method := "GET"
 	req, err := http.NewRequest(method, url+args, nil)
     req.Header.Set("Content-Type", "application/json")
@@ -57,8 +62,8 @@ func digestGet(host string, uri string, args string) bool {
     digestParts := digestParts(resp)
     digestParts["uri"] = args
     digestParts["method"] = method
-    digestParts["username"] = "admin"
-    digestParts["password"] = "4321"
+    digestParts["username"] = conf.User
+    digestParts["password"] = conf.Password
     req, err = http.NewRequest(method, url+args, nil)
     req.Header.Set("Authorization", getDigestAuthorization(digestParts))
     req.Header.Set("Content-Type", "application/json")
@@ -78,8 +83,10 @@ func digestGet(host string, uri string, args string) bool {
     return true
 }
 
-func digestPut(host string, uri string, args string, state string) bool {
-    url := host+uri
+func (p *DLIWebProSwitch) Write(state bool) error {
+    var conf Config
+    url := "http://"+conf.Address
+    var args = "/restapi/relay/outlets/"
     method := "PUT"
 	req, err := http.NewRequest(method, url+args, nil)
     req.Header.Set("Content-Type", "application/json")
@@ -92,14 +99,14 @@ func digestPut(host string, uri string, args string, state string) bool {
     defer resp.Body.Close()
     if resp.StatusCode != http.StatusUnauthorized {
         log.Printf("Recieved status code '%v' auth skipped", resp.StatusCode)
-        return true
+        return nil	
     }
     digestParts := digestParts(resp)
     digestParts["uri"] = args
     digestParts["method"] = method
     digestParts["username"] = "admin"
     digestParts["password"] = "4321"
-	req, err = http.NewRequest(method, url+args, bytes.NewBuffer([]byte(state)))
+	req, err = http.NewRequest(method, url+args, bytes.NewBuffer([]byte(strconv.FormatBool(state))))
     req.Header.Set("Authorization", getDigestAuthorization(digestParts))
     req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
@@ -114,8 +121,9 @@ func digestPut(host string, uri string, args string, state string) bool {
             panic(err)
         }
         log.Println("response body: ", string(body))
-        return false
+        return nil
     }
+    return nil
 }
 
 func digestParts(resp *http.Response) map[string]string {
@@ -158,7 +166,51 @@ func getDigestAuthorization(digestParts map[string]string) string {
     return authorization
 }
 
-func main() {
+func (p *DLIWebProSwitch) Name() string {
+	return p.meta.Name
+}
+
+func (p *DLIWebProSwitch) Number() int {
+	return 0
+}
+
+func DLIWebProSwitchHALAdapter(c []byte, _ i2c.Bus) (hal.Driver, error) {
+	var conf Config
+	if err := json.Unmarshal(c, &conf); err != nil {
+		return nil, err
+	}
+	return NewDLIWebProSwitch(conf.Address,conf.User,conf.Password), nil
+}
+
+func (p *DLIWebProSwitch) Metadata() hal.Metadata {
+	return p.meta
+}
+
+func (p *DLIWebProSwitch) DigitalOutputPins() []hal.DigitalOutputPin {
+	return []hal.DigitalOutputPin{p}
+}
+
+func (p *DLIWebProSwitch) DigitalOutputPin(i int) (hal.DigitalOutputPin, error) {
+	if i != 0 {
+		return nil, fmt.Errorf("invalid pin: %d", i)
+	}
+	return p, nil
+}
+
+func (p *DLIWebProSwitch) Close() error {
+	return nil
+}
+
+func (p *DLIWebProSwitch) Pins(cap hal.Capability) ([]hal.Pin, error) {
+	switch cap {
+	case hal.DigitalOutput:
+		return []hal.Pin{p}, nil
+	default:
+		return nil, fmt.Errorf("unsupported capability:%s", cap.String())
+	}
+}
+
+//func main() {
 	// User configurable inputs:
 	// - username
 	// - password
@@ -167,7 +219,7 @@ func main() {
 	// - Outlet state
 	// - doing a set or just getting status? status updates should be every minute or so
 	// This will always be the command to get all statuses:
-	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/") 
+//	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/") 
 	// To get a specific relay, specify 0-based outlet number:
-	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/3/state") 
-}
+//	digestGet("http://","pro.digital-loggers.com:5002", "/restapi/relay/outlets/3/state") 
+//}
